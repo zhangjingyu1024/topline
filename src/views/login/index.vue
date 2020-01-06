@@ -27,6 +27,7 @@
 </template>
 
 <script>
+import './gt.js'
 export default {
   name: '',
   data () {
@@ -68,24 +69,43 @@ export default {
         }
         // a. 人机交互验证 //axios 获取极验官方服务器的秘钥信息
         this.$http({
-          url: '/mp/v1_0/captchas' + this.loginForm.mobile,
+          url: '/mp/v1_0/captchas/' + this.loginForm.mobile,
           method: 'get'
         })
           .then(res => {
-            console.log(res)
+            console.log(res)// 极验的秘钥信息
+            let { data } = res.data
+            // 请检测data的数据结构, 保证data.gt,data.challeng, data.success有值
+            window.initGeetest({
+              gt: data.gt,
+              challenge: data.challenge,
+              offline: !data.success,
+              new_captcha: true,
+              product: 'bind'
+            }, captchaObj => {
+              // 这里可以调用验证实力captchaobj的实例方法
+              captchaObj.onReady(() => {
+                // 验证码ready之后才能调用verify方法显示验证码(可以显示窗口了)
+                captchaObj.verify() // 显示验证码窗口
+              }).onSuccess(() => {
+                // 行为校验正确的处理
+                // b. 验证账号,登录系统
+                this.loginAct()
+              }).onError(() => {
+                this.$message.error('没拖好,再拖拖试试')
+              })
+            })
           })
           .catch(() => {
             return this.$message.error('校验失败')
           })
-          // b. 验证账号,登录系统
-        this.loginAct()
       })
     },
     // 账号真实性校验,并登录系统
     loginAct () {
       // 服务器端账号真实校验
       this.$http({
-        url: '/app/v1_0/authorizations',
+        url: '/mp/v1_0/authorizations',
         method: 'POST',
         data: this.loginForm
       })
