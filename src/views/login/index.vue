@@ -1,14 +1,14 @@
 <template>
-  <div class="login-container">
-    <div class="login-box">
+  <div class="login-container"  @keydown.enter="login()">
+    <div class="login-box" >
       <!-- 绘制登录form表单 -->
-      <el-form ref="loginFormRef" :model="loginForm" :rules="loginFormRules">
+      <el-form ref="loginFormRef" :model="loginForm" :rules="loginFormRules" >
               <img src="./logo_index.png" alt="">
         <el-form-item prop="mobile">
           <el-input v-model="loginForm.mobile" placeholder="请输入手机号码"><i slot="prefix" class="el-input__icon el-icon-mobile-phone"></i></el-input>
         </el-form-item>
         <el-form-item prop="code">
-          <el-input v-model="loginForm.code" placeholder="请输入验证码"><i slot="prefix" class="el-input__icon el-icon-user"></i></el-input>
+          <el-input v-model="loginForm.code" placeholder="请输入验证码"><i slot="prefix" class="el-input__icon el-icon-lock"></i></el-input>
         </el-form-item>
         <el-form-item style="text-align:left" prop="xieyi">
           <!-- 复选框，单个复选框直接设置v-model即可，接收true/false的信息，表示是否选中 -->
