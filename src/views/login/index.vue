@@ -1,17 +1,18 @@
 <template>
   <div class="login-container">
-    <div class="login-box" @keyup.enter="login()">
+    <div class="login-box">
+      <!-- 绘制登录form表单 -->
       <el-form ref="loginFormRef" :model="loginForm" :rules="loginFormRules">
-        <img src="./logo_index.png" alt />
-        <!-- prop使得校验规则可以找到当前目录进行匹配校验,值 就是当前项目的名称 -->
+              <img src="./logo_index.png" alt="">
         <el-form-item prop="mobile">
           <el-input v-model="loginForm.mobile" placeholder="请输入手机号码"></el-input>
         </el-form-item>
         <el-form-item prop="code">
-          <el-input v-model="loginForm.code" placeholder="请输入校验码"></el-input>
+          <el-input v-model="loginForm.code" placeholder="请输入验证码"></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-checkbox v-model="loginForm.xieyi"></el-checkbox>
+        <el-form-item style="text-align:left" prop="xieyi">
+          <!-- 复选框，单个复选框直接设置v-model即可，接收true/false的信息，表示是否选中 -->
+          <el-checkbox v-model="loginForm.xieyi" ></el-checkbox>
           <span>
             我已阅读并同意
             <a href="#">用户协议</a>和
@@ -19,7 +20,8 @@
           </span>
         </el-form-item>
         <el-form-item>
-          <el-button style="width:100%;" type="primary" @click="login()">登录</el-button>
+          <!-- 登录按钮 -->
+          <el-button type="primary" style="width:100%;" @click="login()" :disabled="isloading" :loading="isloading">登录</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -27,102 +29,94 @@
 </template>
 
 <script>
+// 导入极验gt.js文件
 import './gt.js'
 export default {
   name: '',
   data () {
-    var xieyiTest = function (rule, value, callback) {
-      value ? callback() : callback(new Error('请遵守协议,否则很难搞'))
+    var xieyiTest = function (rule, value, next) {
+      // rule 校验规则,一般无用
+      // value 被校验的数据
+      // next 回调函数,校验成功或失败都会执行
+      value ? next() : next(new Error('请遵守协议'))
     }
     return {
+      // 表单对象
       loginForm: {
-        mobile: '13835834435', // 手机号码
-        code: '246810', // 校验码
-        xieyi: true // 协议
+        mobile: '13835834435',
+        code: '246810',
+        xieyi: false
       },
       loginFormRules: {
-        mobile: [
-          { required: true, message: '手机号码必填' },
-          { pattern: /^1[35789]\d{9}$/, message: '手机号码格式不正确' }
-        ],
-        code: [
-          { required: true, message: '验证码必填' },
-          { len: 6, message: '验证码为6位数字' }
-        ],
-        xieyi: [{ validator: xieyiTest }]
-      }
+        mobile: [{ required: true, message: '请输入手机号' }, { pattern: /^1[35789]\d{9}$/, message: '手机号码格式不对' }],
+        code: [{ required: true, message: '请输入验证码' }, { len: 6, message: '验证码为6位' }],
+        xieyi: [{ validator: xieyiTest, message: '请遵守协议' }]
+      },
+      isloading: false,
+      capObj: null
     }
   },
   methods: {
-    // 登录系统
     login () {
-      // 表单要做校验
-      // console.log(this)
-      // this.$refs.loginFormRef // 获得el-form的组件对象
-      // this.$refs.loginFormRef.validate(回调函数)
-      this.$refs.loginFormRef.validate(valid => {
-        // valid:true 校验通过
-        // valid:false 校验失败
-        // 校验失败，代码停止
-        if (!valid) {
-          return false
+      this.$refs.loginFormRef.validate(v => {
+        if (!v) { return false }
+        if (this.capObj !== null) {
+          // 如果极验窗口对象存在,就直接使用
+          return this.capObj.verify()
         }
-        // a. 人机交互验证 //axios 获取极验官方服务器的秘钥信息
-        this.$http({
-          url: '/mp/v1_0/captchas/' + this.loginForm.mobile,
-          method: 'get'
+        this.isloading = true
+        // A.人机验证
+        // axios 获取极验的秘钥信息
+        let pro = this.$http({
+          url: '/mp/v1_0/captchas/' + this.loginForm.mobile
         })
-          .then(res => {
-            console.log(res)// 极验的秘钥信息
-            let { data } = res.data
-            // 请检测data的数据结构, 保证data.gt,data.challeng, data.success有值
+        pro
+          .then(result => {
+            console.log(result) // 极验的秘钥信息
+            // 从result里边结构下述的data对象出来(对象解构赋值)
+            let { data } = result.data
             window.initGeetest({
               gt: data.gt,
               challenge: data.challenge,
               offline: !data.success,
               new_captcha: true,
               product: 'bind'
-            }, captchaObj => {
-              // 这里可以调用验证实力captchaobj的实例方法
-              captchaObj.onReady(() => {
-                // 验证码ready之后才能调用verify方法显示验证码(可以显示窗口了)
-                captchaObj.verify() // 显示验证码窗口
+            }, (cap) => {
+              // 这里可以调用验证实例captchObj的实例方法
+              cap.onReady(() => {
+                cap.verify()
+                this.isloading = false
+                this.capObj = cap
               }).onSuccess(() => {
-                // 行为校验正确的处理
-                // b. 验证账号,登录系统
                 this.loginAct()
               }).onError(() => {
-                this.$message.error('没拖好,再拖拖试试')
+                // 行为校验错误的处理
               })
             })
+          }).catch(err => {
+            return this.$message.error('获取极验秘钥失败' + err)
           })
-          .catch(() => {
-            return this.$message.error('校验失败')
-          })
+        //
       })
     },
-    // 账号真实性校验,并登录系统
+    // 账号验证
     loginAct () {
-      // 服务器端账号真实校验
-      this.$http({
+      // 服务端账号真实性校验
+      let pro = this.$http({
         url: '/mp/v1_0/authorizations',
-        method: 'POST',
+        method: 'post',
         data: this.loginForm
       })
-        .then(result => {
-          // console.log(result) // 【data】  status statusText headers config request
-          // 客户端浏览器把服务器端返回的秘钥等相关信息通过 sessionStorage 做记录，表明是登录状态
-          window.sessionStorage.setItem(
-            'userinfo',
-            JSON.stringify(result.data.data)
-          )
-          // 进入后台系统
-          this.$router.push('/home')
-        })
-        .catch(() => {
-          // 通过弹出框把错误显示出来
-          this.$message.error('手机号码或验证码错误')
-        })
+      pro.then(res => {
+        this.$message.success('登录成功！')
+        setTimeout(() => {
+          // 把服务端返回的秘钥等相关信息通过sessionStorage做记录,表明是登录状态
+          window.sessionStorage.setItem('userinfo', JSON.stringify(res.data.data))
+          this.$router.push('./home')
+        }, 1000)
+      }).catch(() => {
+        this.$message.error('手机号或者验证码错误')
+      })
     }
   }
 }
@@ -130,13 +124,12 @@ export default {
 
 <style lang="less" scoped>
 .login-container {
-  background-color: gray;
+  background: url(./login_bg.jpg);
+  background-size: cover;
   height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: url("./login_bg.jpg");
-  background-size: cover;
   .login-box {
     width: 410px;
     height: 340px;
@@ -145,7 +138,11 @@ export default {
     justify-content: center;
     align-items: center;
     .el-form {
-      width: 75%;
+      width: 80%;
+      text-align: center;
+      img{
+        width: 60%;
+      }
     }
   }
 }
